@@ -1,6 +1,7 @@
 import argparse
-from Exporters.sqlLiteExporter import extract_data
-from Outputters.qifOutputter import write_data
+
+from gnuCashLib.Outputters import write_data
+from gnuCashLib.Exporters import extract_data
 
 
 def configure_argparse():
@@ -12,6 +13,10 @@ def configure_argparse():
 
 def main():
     args = configure_argparse()
+
+    # TODO: check args.sqldb file exists
+    # TODO: check if args.output file exists - confirm overwrite if so
+
     extract_data(args.sqldb)
     write_data(args.output)
 
