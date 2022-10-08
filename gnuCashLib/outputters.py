@@ -1,6 +1,6 @@
 import string
 
-from gnuCashLib.DataObjects import Account
+from gnuCashLib.data_objects import Account
 
 
 def write_data(accounts: list[Account], output_file: string) -> None:
