@@ -17,8 +17,16 @@ def main():
     # TODO: check args.sqldb file exists
     # TODO: check if args.output file exists - confirm overwrite if so
 
-    extract_data(args.sqldb)
-    write_data(args.output)
+    print('')
+    print('GnuCash Extractor')
+    print('=================')
+    print('')
+    print(f'Sqlite DB:   {args.sqldb}')
+    print(f'Output file: {args.output}')
+    print('')
+
+    accounts = extract_data(args.sqldb)
+    write_data(accounts, args.output)
 
 
 if __name__ == '__main__':

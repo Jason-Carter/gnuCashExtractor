@@ -4,39 +4,38 @@ from typing import List
 
 
 class Account:
-    def __init__(self):
-        self.guid = ""
-        self.name = ""
-        self.description = ""
-        self.account_type = ""
-        self.hierarchy = ""
-        self.hierarchy_level = 0
-        self.transactions = List[Transaction]
+    def __init__(self, row: tuple):
+        # Example row(tuple) for an account would be as follows:
+        #
+        #     ('                    Council Tax',       # hierarchy (includes leading spaces based on level)
+        #      'Council Tax',                           # name
+        #      '2a23aa2ab98bdf746eca456c497ff1ff',      # guid
+        #      '',                                      # description
+        #      'Tax:Council Tax',                       # path
+        #      'EXPENSE',                               # account_type
+        #      2)                                       # level
+
+        # not interested in the path at the moment, so just ignore it
+        self.hierarchy, self.name, self.guid, self.description, _, self.account_type, self.hierarchy_level = row
 
     def __str__(self) -> string:
         return f'{self.account_type} / {self.name}'
 
-    def set_account_from_db(self, row: tuple):
-        """
-            Example row for an account would be as follows:
-                ('                    Council Tax',         # hierarchy
-                'Council Tax',                              # name
-                '2a23aa2ab98bdf746eca456c497ff1ff',         # guid
-                '',                                         # description
-                'Tax:Council Tax',                          # path
-                'EXPENSE',                                  # account_type
-                2)                                          # level
+    @property
+    def is_account(self) -> bool:
+        match self.account_type.upper():
+            case "ASSET" | "CREDIT" | "BANK":
+                return True
+            case _:
+                return False
 
-        :param row:
-        :return:
-        """
-        self.hierarchy = row[0]
-        self.name = row[1]
-        self.guid = row[2]
-        self.description = row[3]
-        # row[4] path not currently used
-        self.account_type = row[5]
-        self.hierarchy_level = row[6]
+    @property
+    def is_category(self) -> bool:
+        match self.account_type.upper():
+            case "EXPENSE" | "INCOME":
+                return True
+            case _:
+                return False
 
 
 class AccountSplit:
@@ -50,7 +49,7 @@ class AccountSplit:
 
 
 class Transaction:
-    #date_posted: datetime.datetime
+    # date_posted: datetime.datetime
 
     def __init__(self):
         self.transaction_guid = ""
