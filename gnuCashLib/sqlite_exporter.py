@@ -1,12 +1,12 @@
 import sqlite3
 import string
-from typing import List
 from gnuCashLib.data_objects import Account, Transaction
 
 
-def sqlite_account_export(data_source: string) -> list[Account]:
+def sqlite_account_export(data_source: string) -> dict[string, Account]:
     sql = """
-            with recursive cteAccounts(guid, name, account_type, parent_guid, code, description, hidden, placeholder, level, path) AS
+            with recursive cteAccounts(guid, name, account_type, parent_guid, code, 
+                                        description, hidden, placeholder, level, path) AS
             (
                 select guid, name, account_type, parent_guid, code,
                         description, hidden, placeholder, 0, ''
@@ -30,22 +30,23 @@ def sqlite_account_export(data_source: string) -> list[Account]:
             where account_type in ('ASSET', 'CREDIT', 'BANK', 'EXPENSE', 'INCOME', 'LIABILITY')
         """
 
-    accounts = list()  # List[Account]()
+    accounts: dict[string, Account] = {}  # list()  # List[Account]()
 
     con = sqlite3.connect(data_source)
     cur = con.cursor()
     for row in cur.execute(sql):
         account = Account(row)
-        accounts.append(account)
+        accounts[account.guid] = account
 
     con.close()
 
     return accounts
 
 
-def sqlite_transaction_export(data_source: string, accounts: list[Account]) -> list[Account]:
+def sqlite_transaction_export(data_source: string, accounts: dict[string, Account]) -> dict[string, Transaction]:
     sql = """
-            with recursive cteCategories(guid, name, account_type, parent_guid, code, description, hidden, placeholder, level, path) AS
+            with recursive cteCategories(guid, name, account_type, parent_guid, code,
+                                        description, hidden, placeholder, level, path) AS
             (
                 select  guid, name, account_type, parent_guid, code,
                         description, hidden, placeholder, 0, ''
@@ -94,12 +95,21 @@ def sqlite_transaction_export(data_source: string, accounts: list[Account]) -> l
                             t.post_date asc
     """
 
+    transactions: dict[string, Transaction] = {}
+
     con = sqlite3.connect(data_source)
     cur = con.cursor()
     for row in cur.execute(sql):
-        # TODO write this functionality
-        print(row)
+        trx = Transaction(row, accounts)
+
+        if trx.transaction_guid in transactions:
+            existing_trx = transactions[trx.transaction_guid]
+            # TODO: Update any attributes on trx that are not on existing_trx
+            # TODO: Create a new method on Transaction to add missing attributes / splits (add_new_trx_values)
+            existing_trx.account_splits.append(trx.account_splits)
+        else:
+            transactions[trx.transaction_guid] = trx
 
     con.close()
 
-    return accounts
+    return transactions

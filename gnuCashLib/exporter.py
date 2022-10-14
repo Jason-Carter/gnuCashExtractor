@@ -18,6 +18,10 @@ def extract_data(data_source: string) -> list[Account]:
     print(f'{len(acc_list)} accounts extracted')
 
     print(f'Extracting transactions for each account...')
-    sqlite_transaction_export(data_source, acc_list)
+    trx_list = sqlite_transaction_export(data_source, acc_list)
+    print (f'{len(trx_list)} transactions returned')
+
+    # for trx in trx_list:
+    #     print(trx)
 
     return acc_list
