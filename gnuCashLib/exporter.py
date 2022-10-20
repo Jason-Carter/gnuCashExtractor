@@ -1,10 +1,9 @@
 import string
-from typing import List
 from gnuCashLib.data_objects import Account
 from gnuCashLib.sqlite_exporter import sqlite_account_export, sqlite_transaction_export
 
 
-def extract_data(data_source: string) -> list[Account]:
+def extract_data(data_source: string) -> dict[string, Account]:
     """
     Extracts the Accounts and Transactions from the sqlite data source.
 
@@ -16,12 +15,11 @@ def extract_data(data_source: string) -> list[Account]:
     print(f'Extracting accounts...')
     acc_list = sqlite_account_export(data_source)
     print(f'{len(acc_list)} accounts extracted')
+    print()
 
-    print(f'Extracting transactions for each account...')
+    print(f'Extracting transactions...')
     trx_list = sqlite_transaction_export(data_source, acc_list)
-    print (f'{len(trx_list)} transactions returned')
-
-    # for trx in trx_list:
-    #     print(trx)
+    print(f'{len(trx_list)} transactions returned')
+    print()
 
     return acc_list

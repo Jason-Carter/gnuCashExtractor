@@ -26,6 +26,15 @@ def main():
     print('')
 
     accounts = extract_data(args.sqldb)
+
+    print('Account/Transaction Spread')
+    print('-------------------------')
+    print()
+    for acc in [a for a in accounts.values() if a.is_account]:
+        print(acc)
+
+    print()
+
     write_data(accounts, args.output)
 
 

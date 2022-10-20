@@ -3,7 +3,7 @@ import string
 from gnuCashLib.data_objects import Account
 
 
-def write_data(accounts: list[Account], output_file: string) -> None:
+def write_data(accounts: dict[string, Account], output_file: string) -> None:
     """
     Writes all the accounts and transactions to the output file
 

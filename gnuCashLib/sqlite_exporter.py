@@ -3,34 +3,34 @@ import string
 from gnuCashLib.data_objects import Account, Transaction
 
 
+def sql_get_accounts():
+    return """
+            select      acc.guid, acc.name, acc.account_type, acc.description
+            from        accounts  acc
+            inner join  accounts  p   on p.guid = acc.parent_guid
+                                      and p.parent_guid is null
+                                      and p.account_type = 'ROOT'
+                                      and p.name = 'Root Account'
+            where acc.account_type in ('ASSET', 'CREDIT', 'BANK', 'LIABILITY')
+    """
+
+
+def sql_get_categories():
+    return """
+            select      a.guid, a.name, a.account_type, a.description
+            from        accounts a
+            where       a.account_type in ('EXPENSE', 'INCOME')
+    """
+
+
 def sqlite_account_export(data_source: string) -> dict[string, Account]:
-    sql = """
-            with recursive cteAccounts(guid, name, account_type, parent_guid, code, 
-                                        description, hidden, placeholder, level, path) AS
-            (
-                select guid, name, account_type, parent_guid, code,
-                        description, hidden, placeholder, 0, ''
-                from accounts
-                where parent_guid is null
-                and name = 'Root Account'
-                union all
-                select a.guid, a.name, a.account_type, a.parent_guid, a.code,
-                            a.description, a.hidden, a.placeholder, p.level + 1, p.path || ':' || a.name
-                from        accounts a
-                inner join  cteAccounts p on p.guid = a.parent_guid
-                order by 9 desc -- by using desc we're doing a depth-first search
-            )
-            select substr('                                        ', 1, level* 10) || name 'hierarchy',
-                    name,
-                    guid,
-                    description,
-                    substr(path, 2, length(path)) 'path',
-                    account_type, level
-            from    cteAccounts
-            where account_type in ('ASSET', 'CREDIT', 'BANK', 'EXPENSE', 'INCOME', 'LIABILITY')
+    sql = f"""
+            {sql_get_accounts()}
+            union
+            {sql_get_categories()}
         """
 
-    accounts: dict[string, Account] = {}  # list()  # List[Account]()
+    accounts: dict[string, Account] = {}
 
     con = sqlite3.connect(data_source)
     cur = con.cursor()
@@ -44,32 +44,12 @@ def sqlite_account_export(data_source: string) -> dict[string, Account]:
 
 
 def sqlite_transaction_export(data_source: string, accounts: dict[string, Account]) -> dict[string, Transaction]:
-    sql = """
-            with recursive cteCategories(guid, name, account_type, parent_guid, code,
-                                        description, hidden, placeholder, level, path) AS
+    sql = f"""
+            with cteAccounts(guid, name, account_type, description) AS
             (
-                select  guid, name, account_type, parent_guid, code,
-                        description, hidden, placeholder, 0, ''
-                from    accounts 
-                where   parent_guid is null
-                and     name = 'Root Account'
-                union all
-                select      a.guid, a.name, a.account_type, a.parent_guid, a.code,
-                            a.description, a.hidden, a.placeholder, p.level + 1, p.path || ':' || a.name
-                from        accounts a
-                inner join  cteCategories p on p.guid = a.parent_guid
-                where       a.account_type in ('EXPENSE', 'INCOME')
-                order by 9 desc -- by using desc we're doing a depth-first search
-            ),
-            cteAccounts(guid, name, account_type, description) as
-            (
-                select      acc.guid, acc.name, acc.account_type, acc.description
-                from        accounts  acc
-                inner join  accounts  p   on p.guid = acc.parent_guid
-                                          and p.parent_guid is null
-                                          and p.account_type = 'ROOT'
-                                          and p.name = 'Root Account'
-                where acc.account_type in ('ASSET', 'CREDIT', 'BANK', 'LIABILITY')
+                {sql_get_accounts()}
+                union
+                {sql_get_categories()}
             )
             select
                             t.guid              as TrxGuid,
@@ -79,8 +59,6 @@ def sqlite_transaction_export(data_source: string, accounts: dict[string, Accoun
                             t.Num               as Ref,
                             t.Description,
                             sl.string_val       as Notes,
-                            cat.guid            as CategoryGuid,
-                            cat.name            as Transfer,
                             s.reconcile_state   as isReconciled,
                             case acc.account_type
                                 when 'EQUITY' then ROUND((s.value_num / -100.0), 2)
@@ -89,7 +67,6 @@ def sqlite_transaction_export(data_source: string, accounts: dict[string, Accoun
             from            splits        as s
             inner join      transactions  as t    on t.guid = s.tx_guid
             left outer join cteAccounts   as acc  on acc.guid = s.account_guid
-            left outer join cteCategories as cat  on cat.guid = s.account_guid
             left outer join slots         as sl   on sl.obj_guid = t.guid and sl.name = 'notes'
             order by        t.guid,
                             t.post_date asc
@@ -103,10 +80,27 @@ def sqlite_transaction_export(data_source: string, accounts: dict[string, Accoun
         trx = Transaction(row, accounts)
 
         if trx.transaction_guid in transactions:
+            # Merge current transaction with the existing one. Since this is double entry bookkeeping
+            # there is usually one account entry and one (or could be more) category entry
             existing_trx = transactions[trx.transaction_guid]
-            # TODO: Update any attributes on trx that are not on existing_trx
-            # TODO: Create a new method on Transaction to add missing attributes / splits (add_new_trx_values)
-            existing_trx.account_splits.append(trx.account_splits)
+
+            if trx.is_account_side:
+                # Record the account rather than category details on the transaction
+                existing_trx.account_guid = trx.account_guid
+                existing_trx.account_name = trx.account_name
+
+            if len(trx.account_splits) > 0:
+                # Should always be one split per transaction unless added here
+                existing_trx.account_splits.extend(trx.account_splits)
+
+            if len(existing_trx.account_splits) > 2:
+                print(f"WARNING: Multiple splits for {existing_trx}, but only two splits currently supported!")
+
+            # Update the accounts reference with the existing_trx
+            for acc_key, acc in accounts.items():
+                if existing_trx.transaction_guid in acc.transactions:
+                    acc.transactions[existing_trx.transaction_guid] = existing_trx
+
         else:
             transactions[trx.transaction_guid] = trx
 
